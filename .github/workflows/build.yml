@@ -1,0 +1,93 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+
+# 强制编译模式：任何一步失败都立刻让整个 workflow 失败，不使用 continue-on-error，
+# 目的是一次性把所有真实的构建问题暴露出来，而不是被吞掉。
+jobs:
+  build:
+    name: Assemble debug + release, run lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept all SDK licenses
+        run: |
+          set -o pipefail
+          yes | sdkmanager --licenses > /dev/null || true
+
+      - name: Install compileSdk platform
+        run: |
+          set -o pipefail
+          # compileSdk 由 ImapNotes3/build.gradle 里的 `compileSdk 37` 决定。
+          # buildTools 未在脚本里固定版本，交给 AGP 自己解析需要的版本。
+          sdkmanager "platform-tools" "platforms;android-37"
+
+      - name: Show installed SDK packages
+        run: |
+          echo "### platforms"
+          sdkmanager --list_installed 2>/dev/null | grep -E "platforms;|build-tools;" || true
+          echo "### available android-3x platforms"
+          sdkmanager --list 2>/dev/null | grep -oE "platforms;android-3[0-9]" | sort -u || true
+          echo "### available build-tools"
+          sdkmanager --list 2>/dev/null | grep -oE "build-tools;[0-9.]+" | sort -uV | tail -8 || true
+
+      - name: Generate signing keystore
+        # build.gradle 里 signingConfigs.release 指向仓库根目录的 keystore.jks，
+        # 而 debug 也复用了这个签名配置；文件不在版本库里，所以这里现场生成，
+        # 别名/密码与 build.gradle 中的硬编码值保持一致。
+        run: |
+          set -o pipefail
+          keytool -genkeypair -v \
+            -keystore keystore.jks \
+            -storetype PKCS12 \
+            -storepass ImapNotes2 \
+            -keypass ImapNotes \
+            -alias ImapNotes \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=ImapNotes3, OU=ImapNotes3, O=ImapNotes3, C=DE"
+          keytool -list -keystore keystore.jks -storepass ImapNotes2
+
+      - name: Show Gradle version
+        run: ./gradlew --version --no-daemon
+
+      - name: Assemble debug
+        run: ./gradlew assembleDebug --stacktrace --warning-mode all
+
+      - name: Assemble release
+        run: ./gradlew assembleRelease --stacktrace --warning-mode all
+
+      - name: Run lint
+        run: ./gradlew lintDebug --stacktrace
+
+      - name: List build outputs
+        if: always()
+        run: |
+          echo "### APKs"
+          find . -name '*.apk' -not -path './.gradle/*' -exec ls -la {} \; || true
+
+      - name: Upload APKs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ImapNotes3-apk
+          path: '**/build/outputs/apk/**/*.apk'
+          if-no-files-found: warn

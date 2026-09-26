@@ -33,6 +33,7 @@ import androidx.annotation.Nullable;
 import android.net.TrafficStats;
 import android.util.Log;
 
+import de.niendo.ImapNotes3.BuildConfig;
 import de.niendo.ImapNotes3.Data.NotesDb;
 import de.niendo.ImapNotes3.Data.OneNote;
 import de.niendo.ImapNotes3.Data.Security;
@@ -43,6 +44,7 @@ import de.niendo.ImapNotes3.Miscs.ImapNotesResult;
 
 import com.sun.mail.imap.AppendUID;
 import com.sun.mail.imap.IMAPFolder;
+import com.sun.mail.imap.IMAPStore;
 import com.sun.mail.util.MailSSLSocketFactory;
 
 import java.io.ByteArrayInputStream;
@@ -57,7 +59,9 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 import javax.mail.Flags;
@@ -303,6 +307,7 @@ public class SyncUtils {
             //session.setDebug(true);
             store = session.getStore(proto);
             store.connect(server, username, password);
+            SendImapClientId();
             //res.hasUIDPLUS = ((IMAPStore) store).hasCapability("UIDPLUS");
             //Log.v(TAG, "has UIDPLUS="+res.hasUIDPLUS);
 
@@ -339,6 +344,33 @@ public class SyncUtils {
                     -1);
         }
 
+    }
+
+    /**
+     * Sends the IMAP ID command (RFC 2971) to identify this client to the server.
+     * <p>
+     * 126/163/yeah.net require this right after login: without it they reject every folder
+     * operation with "NO SELECT Unsafe Login. Please contact kefu@188.com for help".
+     * Servers that do not implement the extension answer with an error, which must not abort
+     * the connection, so any failure is logged and ignored.
+     */
+    private void SendImapClientId() {
+        if (!(store instanceof IMAPStore)) return;
+        try {
+            if (!((IMAPStore) store).hasCapability("ID")) {
+                Log.d(TAG, "Server does not support IMAP ID, skipping.");
+                return;
+            }
+            Map<String, String> clientId = new HashMap<>();
+            clientId.put(IMAPStore.ID_NAME, "ImapNotes3");
+            clientId.put(IMAPStore.ID_VERSION, BuildConfig.VERSION_NAME);
+            clientId.put(IMAPStore.ID_VENDOR, "niendo1");
+            clientId.put(IMAPStore.ID_CONTACT, "peter@niendo.de");
+            ((IMAPStore) store).id(clientId);
+            Log.d(TAG, "IMAP ID sent.");
+        } catch (MessagingException e) {
+            Log.w(TAG, "IMAP ID failed, continuing without it: ", e);
+        }
     }
 
     synchronized void DisconnectFromRemote() {
