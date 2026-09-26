@@ -362,10 +362,10 @@ public class SyncUtils {
                 return;
             }
             Map<String, String> clientId = new HashMap<>();
-            clientId.put(IMAPStore.ID_NAME, "ImapNotes3");
-            clientId.put(IMAPStore.ID_VERSION, BuildConfig.VERSION_NAME);
-            clientId.put(IMAPStore.ID_VENDOR, "niendo1");
-            clientId.put(IMAPStore.ID_CONTACT, "peter@niendo.de");
+            clientId.put("name", "ImapNotes3");
+            clientId.put("version", BuildConfig.VERSION_NAME);
+            clientId.put("vendor", "niendo1");
+            clientId.put("support-url", "https://github.com/niendo1/ImapNotes3/issues");
             ((IMAPStore) store).id(clientId);
             Log.d(TAG, "IMAP ID sent.");
         } catch (MessagingException e) {
