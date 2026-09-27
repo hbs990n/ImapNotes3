@@ -60,25 +60,33 @@ jobs:
           echo "### available android-37 platforms"
           sdkmanager --list 2>/dev/null | grep -oE "platforms;android-37[0-9.]*" | sort -u || true
 
-      - name: Generate signing keystore
+      - name: Ensure signing keystore
         # build.gradle 里 signingConfigs.release 指向仓库根目录的 keystore.jks，
-        # 而 debug 也复用了这个签名配置；文件不在版本库里，所以这里现场生成，
-        # 别名/密码与 build.gradle 中的硬编码值保持一致。
-        # 必须用 JKS：PKCS12 不支持 store 密码与 key 密码不同，而这里两者确实不同。
+        # 而 debug 也复用了这个签名配置。
+        # 仓库里已经带了一份固定的自签名密钥（口令与 build.gradle 中的硬编码值一致），
+        # 所有构建共用它，签名才会稳定，APK 才能覆盖安装而不必卸载。
+        # 只有当仓库里没有这份文件时才现场生成一份——那样生成出来的密钥每次都不同，
+        # 会导致 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
         run: |
           set -o pipefail
-          keytool -genkeypair -v \
-            -keystore keystore.jks \
-            -storetype JKS \
-            -storepass ImapNotes2 \
-            -keypass ImapNotes \
-            -alias ImapNotes \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=ImapNotes3, OU=ImapNotes3, O=ImapNotes3, C=DE"
+          if [ -f keystore.jks ]; then
+            echo "Using the keystore committed to the repository (stable signature)."
+          else
+            echo "::warning::No keystore.jks in the repo, generating a throwaway one. Signature will differ from previous builds."
+            # 必须用 JKS：PKCS12 不支持 store 密码与 key 密码不同，而这里两者确实不同。
+            keytool -genkeypair -v \
+              -keystore keystore.jks \
+              -storetype JKS \
+              -storepass ImapNotes2 \
+              -keypass ImapNotes \
+              -alias ImapNotes \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=ImapNotes3, OU=ImapNotes3, O=ImapNotes3, C=DE"
+          fi
           keytool -list -v -keystore keystore.jks -storepass ImapNotes2 \
-            | grep -E "Alias name|Entry type|Keystore type"
+            | grep -E "Alias name|Entry type|Keystore type|SHA256"
 
       - name: Show Gradle version
         run: ./gradlew --version --no-daemon
