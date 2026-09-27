@@ -186,4 +186,6 @@
     <string name="save_note_failed">saving the note failed for unknown reasons</string>
     <string name="Ukrainian">Ukrainian</string>
     <string name="OAUTH2">OAuth2/XOAuth2</string>
+    <string name="wordcount">Word count</string>
+    <string name="wordcount_result">Characters: %1$d\nWords: %2$d\nParagraphs: %3$d</string>
 </resources>

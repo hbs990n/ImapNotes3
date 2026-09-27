@@ -57,6 +57,10 @@ import java.util.List;
 
 import javax.mail.Message;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+
 import de.niendo.ImapNotes3.Data.NotesDb;
 import de.niendo.ImapNotes3.Data.OneNote;
 import de.niendo.ImapNotes3.Miscs.EditorMenuAdapter;
@@ -789,6 +793,9 @@ public class NoteDetailActivity extends AppCompatActivity implements AdapterView
             case R.id.share:
                 Share();
                 return true;
+            case R.id.wordcount:
+                ShowWordCount();
+                return true;
             case android.R.id.home:
                 saveChangesDialog();
                 return true;
@@ -964,6 +971,49 @@ public class NoteDetailActivity extends AppCompatActivity implements AdapterView
         // data comes via callback
         editText.getHtml();
 
+    }
+
+    /**
+     * Shows how many characters, words and paragraphs the note currently holds.
+     * <p>
+     * Characters are counted by code point and exclude whitespace, so CJK text is
+     * counted one glyph at a time while surrogate pairs count as one character.
+     * Words are whitespace separated, which is what an English user expects.
+     */
+    private void ShowWordCount() {
+        Log.d(TAG, "ShowWordCount");
+        editText.setOnJSDataListener(html -> {
+            Document doc = Jsoup.parse(html);
+            String text = doc.text();
+
+            int characters = 0;
+            for (int i = 0; i < text.length(); ) {
+                int codePoint = text.codePointAt(i);
+                i += Character.charCount(codePoint);
+                if (!Character.isWhitespace(codePoint)) characters++;
+            }
+
+            String trimmed = text.trim();
+            int words = trimmed.isEmpty() ? 0 : trimmed.split("\\s+").length;
+
+            int paragraphs = 0;
+            for (Element element : doc.body().children()) {
+                if (!element.text().trim().isEmpty()) paragraphs++;
+            }
+            if (paragraphs == 0 && !trimmed.isEmpty()) paragraphs = 1;
+
+            String message =
+                    getString(
+                            R.string.wordcount_result, characters, words, paragraphs);
+            new AlertDialog.Builder(this)
+                    .setTitle(R.string.wordcount)
+                    .setIcon(android.R.drawable.ic_menu_info_details)
+                    .setMessage(message)
+                    .setPositiveButton(android.R.string.ok, null)
+                    .show();
+        });
+        // data comes via callback
+        editText.getHtml();
     }
 
     private void processShareIntent(Intent intent) {

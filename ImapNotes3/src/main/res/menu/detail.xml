@@ -47,6 +47,12 @@
         app:showAsAction="ifRoom" />
 
     <item
+        android:id="@+id/wordcount"
+        android:icon="@drawable/ic_action_wordcount"
+        android:title="@string/wordcount"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/color"
         android:icon="@drawable/ic_action_color"
         android:title="@string/color"

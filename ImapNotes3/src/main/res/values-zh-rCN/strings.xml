@@ -185,4 +185,6 @@
     <string name="save_note_failed">保存笔记因未知原因失败了</string>
     <string name="Ukrainian">乌克兰语</string>
     <string name="OAUTH2">OAuth2/XOAuth2</string>
+    <string name="wordcount">字数统计</string>
+    <string name="wordcount_result">字符数：%1$d\n单词数：%2$d\n段落数：%3$d</string>
 </resources>
