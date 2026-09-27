@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.regex.Pattern;
 
 import javax.mail.Flags;
 import javax.mail.Folder;
@@ -79,6 +80,15 @@ import de.niendo.ImapNotes3.Miscs.Utilities;
 public class SyncUtils {
 
     private static final String TAG = "IN_SyncUtils";
+
+    /**
+     * Matches an RFC 2047 encoded word inside a mail header, e.g. {@code =?UTF-8?B?...?=}
+     * or {@code =?utf-8?Q?...?=}. Both the charset name and the encoding letter are
+     * case insensitive per RFC 2047, so this has to be matched case insensitively
+     * as well.
+     */
+    private static final Pattern ENCODED_WORD =
+            Pattern.compile("=\\?[^?]*\\?[QqBb]\\?");
     private final Object myLock = new Object();
     // TODO: Why do we have two folder fields and why are they both nullable?
     private Store store;
@@ -433,10 +443,23 @@ public class SyncUtils {
         // either =?utf-8?B?bMOkIMO2IMOr?=  -> Quoted printable
         // or =?utf-8?Q?l=C3=A4 =C3=B6 =C3=AB?=  -> Base64
         // Hard coding the wrong servers is not possible, as some subjects are correct encoded, and some not
+        //
+        // The check must match the encoded word case insensitively: RFC 2047 allows any
+        // case for the charset and the encoding letter, and in practice JavaMail writes
+        // "=?UTF-8?B?" in upper case. Comparing against a lower case "=?utf" made this
+        // branch run for subjects that were already encoded correctly, and it then threw
+        // away the decoded title by round tripping it through ISO-8859-1, which replaced
+        // every non latin-1 character with '?'.
         try {
             String[] rawvalue = notesMessage.getHeader("Subject");
-            if (rawvalue != null && rawvalue[0] != null && (!(rawvalue[0].contains("=?utf")))) {
-                title = new String(title.getBytes(StandardCharsets.ISO_8859_1));
+            if (rawvalue != null
+                    && rawvalue[0] != null
+                    && !ENCODED_WORD.matcher(rawvalue[0]).find()) {
+                // The raw header bytes are UTF-8 but not an encoded word, so JavaMail
+                // handed them over as ISO-8859-1. Reinterpret those bytes as UTF-8.
+                title = new String(
+                        title.getBytes(StandardCharsets.ISO_8859_1),
+                        StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
             Log.e(TAG, "subject2title failed", e);
